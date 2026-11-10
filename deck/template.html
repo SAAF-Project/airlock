@@ -70,24 +70,24 @@ ul{padding-left:1.1em;color:var(--muted);font-size:clamp(14px,1.25vw,18px);line-
   <div class="body">
     <h2>A pushed key is a <em>leaked</em> key.</h2>
     <div class="flow">
-      <div class="st"><div class="dot">1</div><b>write code</b><span>key pasted in, PDF sent raw to the model</span></div>
-      <div class="st al"><div class="dot">2</div><b>git commit</b><span>Airlock refuses it here</span></div>
-      <div class="st"><div class="dot">3</div><b>git push</b><span>now on GitHub</span></div>
-      <div class="st ci"><div class="dot">4</div><b>CI</b><span>SAAF Guard checks every push</span></div>
-      <div class="st bad"><div class="dot">∞</div><b>git history</b><span>the key stays readable forever</span></div>
+      <div class="st"><div class="dot">1</div><b>write code</b><span>key (password) pasted in, PDF sent raw to the AI</span></div>
+      <div class="st al"><div class="dot">2</div><b>git commit</b><span>save a version: Airlock refuses it here</span></div>
+      <div class="st"><div class="dot">3</div><b>git push</b><span>upload: now on GitHub</span></div>
+      <div class="st ci"><div class="dot">4</div><b>CI</b><span>automatic check after upload: SAAF Guard</span></div>
+      <div class="st bad"><div class="dot">∞</div><b>git history</b><span>old versions are kept: the key stays readable forever</span></div>
     </div>
   </div>
 </section>
 
 <section class="slide">
-  <div class="kicker"><span>02 · What Airlock refuses</span><span>SAAF Guard's 17 rules + Airlock's own, on staged files</span></div>
+  <div class="kicker"><span>02 · What Airlock refuses</span><span>SAAF Guard's 17 rules + Airlock's own, at every save (commit)</span></div>
   <div class="body">
     <h2>Four mistakes from <em>today</em>.</h2>
     <div class="rows">
-      <div class="row"><div class="what">Real key in .env.example</div><code>ANTHROPIC_API_KEY=sk-ant-api03-…</code><span class="tagx only">Airlock only</span></div>
-      <div class="row"><div class="what">Vendor PDF sent to the model unfenced</div><code>f"Review this report: {pdf_text}"</code><span class="tagx">SAAF Guard rule</span></div>
+      <div class="row"><div class="what">Real key (password) in a shared file</div><code>ANTHROPIC_API_KEY=sk-ant-api03-…</code><span class="tagx only">Airlock only</span></div>
+      <div class="row"><div class="what">Vendor PDF can give the AI orders (prompt injection)</div><code>f"Review this report: {pdf_text}"</code><span class="tagx">SAAF Guard rule</span></div>
       <div class="row"><div class="what">An error turns the verdict green</div><code>except: return "Green"</code><span class="tagx only">Airlock only</span></div>
-      <div class="row"><div class="what">Agent server open to the network</div><code>app.run(host="0.0.0.0", debug=True)</code><span class="tagx">SAAF Guard rule</span></div>
+      <div class="row"><div class="what">Agent open to everyone on the network</div><code>app.run(host="0.0.0.0", debug=True)</code><span class="tagx">SAAF Guard rule</span></div>
     </div>
   </div>
 </section>
@@ -120,8 +120,8 @@ ul{padding-left:1.1em;color:var(--muted);font-size:clamp(14px,1.25vw,18px);line-
         <h2>One command.</h2>
         <div><span class="cmd">python airlock.py install .</span></div>
         <ul>
-          <li>Uses SAAF Guard's rules automatically when present</li>
-          <li>Also as a pre-commit hook and a CI workflow</li>
+          <li>Works with AI coding assistants: they read the refusal (file, line, fix) and correct it</li>
+          <li>Uses SAAF Guard's rules when present; also runs in CI</li>
           <li>Use gitleaks for secrets; Airlock adds the AI-agent rules</li>
           <li><b>Limits:</b> static patterns, can miss or over-flag; skippable with --no-verify, so keep CI as backstop</li>
         </ul>
