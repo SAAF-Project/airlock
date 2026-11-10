@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airlock</title>
+<style>
+:root{--ink:#14152b;--muted:#5d6079;--line:#e3e4ee;--paper:#f7f7fb;--accent:#6f6cf6;--navy:#2b2a6e;--red:#e5484d;--green:#1f9d61;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--paper);color:var(--ink);font-family:var(--sans)}
+.slide{position:absolute;inset:0;padding:6vh 7vw;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .35s ease}
+.slide.on{opacity:1;pointer-events:auto}
+.kicker{font:500 clamp(12px,1.1vw,15px)/1 var(--mono);color:var(--muted);letter-spacing:.02em;display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{font-size:clamp(56px,9vw,132px);font-weight:700;letter-spacing:-.04em;line-height:.95}
+h2{font-size:clamp(34px,4.6vw,68px);font-weight:700;letter-spacing:-.03em;line-height:1.02;max-width:18ch}
+h2 em,h1 em{font-style:normal;color:var(--accent)}
+.lead{font-size:clamp(18px,1.8vw,26px);color:var(--muted);line-height:1.4;max-width:46ch}
+.body{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4vh}
+/* timeline */
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:2vh;position:relative}
+.flow::before{content:"";position:absolute;top:22px;left:10%;right:10%;height:2px;background:var(--line)}
+.st{position:relative;text-align:center;padding:0 6px}
+.dot{width:46px;height:46px;border-radius:50%;margin:0 auto 14px;background:#fff;border:2px solid var(--line);display:grid;place-items:center;font:600 14px var(--mono);color:var(--muted)}
+.st b{display:block;font:600 clamp(14px,1.3vw,18px) var(--mono)}
+.st span{display:block;color:var(--muted);font-size:clamp(12px,1.05vw,15px);margin-top:6px;line-height:1.35}
+.st.al .dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.st.al b{color:var(--accent)}
+.st.ci .dot{border-color:var(--navy);color:var(--navy)}
+.st.bad .dot{border-color:var(--red);color:var(--red)}
+.stats{display:flex;gap:6vw}
+.stat b{display:block;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-.04em;line-height:1}
+.stat span{color:var(--muted);font-size:clamp(14px,1.2vw,17px)}
+/* table */
+.rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:1.1fr 1.3fr .5fr;gap:3vw;align-items:center;padding:2.2vh 0;border-bottom:1px solid var(--line)}
+.row .what{font-size:clamp(17px,1.7vw,24px);font-weight:600}
+.row code{font:clamp(13px,1.2vw,17px) var(--mono);background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tagx{font:600 12px var(--mono);justify-self:start;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tagx.only{background:var(--accent);border-color:var(--accent);color:#fff}
+/* terminal */
+.term{background:var(--ink);color:#e9e9f3;border-radius:14px;padding:3vh 2.4vw;font:clamp(13px,1.25vw,18px)/1.65 var(--mono);max-width:900px;box-shadow:0 20px 50px -24px rgba(20,21,43,.5)}
+.term .r{color:#ff6b70}.term .g{color:#4cd38a}.term .m{color:#8d8fb0}.term .a{color:#a9a7ff}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:1.6vw}
+.stp{border-top:3px solid var(--accent);padding-top:12px;font-size:clamp(14px,1.25vw,18px);line-height:1.35}
+.stp b{display:block;font:600 12px var(--mono);color:var(--accent);margin-bottom:6px}
+/* last */
+.two{display:grid;grid-template-columns:1.4fr 1fr;gap:6vw;align-items:start}
+.cmd{font:600 clamp(16px,1.7vw,24px) var(--mono);background:var(--ink);color:#fff;border-radius:10px;padding:16px 20px;display:inline-block}
+ul{padding-left:1.1em;color:var(--muted);font-size:clamp(14px,1.25vw,18px);line-height:1.6}
+.qr{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center}
+.qr svg{width:100%;max-width:220px;height:auto;display:block;margin:0 auto 10px}
+.qr span{font:13px var(--mono);color:var(--muted)}
+.nav{position:fixed;bottom:3vh;right:7vw;font:12px var(--mono);color:var(--muted);display:flex;gap:6px;align-items:center}
+.nav i{width:22px;height:3px;background:var(--line);border-radius:2px}.nav i.on{background:var(--accent)}
+@media (max-width:760px){.slide{padding:5vh 6vw;overflow:auto}.flow{grid-template-columns:1fr;gap:18px}.flow::before{display:none}.st{display:grid;grid-template-columns:46px 1fr;text-align:left;gap:12px}.dot{margin:0}.row{grid-template-columns:1fr}.steps,.two{grid-template-columns:1fr}.stats{flex-direction:column;gap:2vh}}
+</style>
+</head>
+<body>
+
+<section class="slide on">
+  <div class="kicker"><span>SAAF Security Challenge · 10 Nov 2026</span><span>Izzet</span></div>
+  <div class="body">
+    <h1>Airlock</h1>
+    <p class="lead">Stops the mistakes from today's findings <em style="font-style:normal;color:var(--accent)">before they are committed</em>, not after they are pushed.</p>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>01 · The gap</span><span>Today: 61 findings in 29 SAAF repos</span></div>
+  <div class="body">
+    <h2>A pushed key is a <em>leaked</em> key.</h2>
+    <div class="flow">
+      <div class="st"><div class="dot">1</div><b>write code</b><span>key pasted in, PDF sent raw to the model</span></div>
+      <div class="st al"><div class="dot">2</div><b>git commit</b><span>Airlock refuses it here</span></div>
+      <div class="st"><div class="dot">3</div><b>git push</b><span>now on GitHub</span></div>
+      <div class="st ci"><div class="dot">4</div><b>CI</b><span>SAAF Guard fails the build, too late for the key</span></div>
+      <div class="st bad"><div class="dot">∞</div><b>git history</b><span>the key stays readable forever</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>02 · What Airlock refuses</span><span>SAAF Guard's 17 rules + Airlock's own, on staged files</span></div>
+  <div class="body">
+    <h2>Four mistakes from <em>today</em>.</h2>
+    <div class="rows">
+      <div class="row"><div class="what">Real key in .env.example</div><code>ANTHROPIC_API_KEY=sk-ant-api03-…</code><span class="tagx only">Airlock only</span></div>
+      <div class="row"><div class="what">Vendor PDF sent to the model unfenced</div><code>f"Review this report: {pdf_text}"</code><span class="tagx">SAAF Guard rule</span></div>
+      <div class="row"><div class="what">An error turns the verdict green</div><code>except: return "Green"</code><span class="tagx only">Airlock only</span></div>
+      <div class="row"><div class="what">Agent server open to the network</div><code>app.run(host="0.0.0.0", debug=True)</code><span class="tagx">SAAF Guard rule</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>03 · Live demo</span><span>building a vendor-review agent</span></div>
+  <div class="body">
+    <div class="term"><span class="m">$</span> git commit -m "vendor review agent"<br>
+<span class="r">┌─ airlock ✖ COMMIT BLOCKED</span><br>
+<span class="r">│</span> High  agent.py:5<br>
+<span class="r">│</span>       <span class="a">[SAAF Guard SG02]</span> Untrusted text enters the prompt without fence()<br>
+<span class="r">│</span>       <span class="m">fix: wrap document text in fence()</span><br>
+<span class="r">└──</span><br>
+<span class="m">$</span> git commit -m "vendor review agent"<br>
+<span class="g">airlock ✔ commit clean</span></div>
+    <div class="steps">
+      <div class="stp"><b>STEP 1</b>.env + .env.example with a real key</div>
+      <div class="stp"><b>STEP 2</b>agent sends the vendor PDF raw</div>
+      <div class="stp"><b>STEP 3</b>rating falls back to "Green"</div>
+      <div class="stp"><b>STEP 4</b>server on 0.0.0.0 with debug</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>04 · Reuse in any SAAF repo</span><span>standard-library Python · offline</span></div>
+  <div class="body">
+    <div class="two">
+      <div style="display:flex;flex-direction:column;gap:3vh">
+        <h2>One command.</h2>
+        <div><span class="cmd">python airlock.py install .</span></div>
+        <ul>
+          <li>Uses SAAF Guard's rules automatically when present</li>
+          <li>Also as a pre-commit hook and a CI workflow</li>
+          <li>Use gitleaks for secrets; Airlock adds the AI-agent rules</li>
+          <li><b>Limits:</b> static patterns, can miss or over-flag; skippable with --no-verify, so keep CI as backstop</li>
+        </ul>
+      </div>
+      <div class="qr"><!--QR--><span>__URL__</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="nav" id="nav"></div>
+<script>
+const S=[...document.querySelectorAll('.slide')],nav=document.getElementById('nav');let i=0;
+S.forEach(()=>nav.appendChild(document.createElement('i')));
+function go(n){i=Math.max(0,Math.min(S.length-1,n));S.forEach((s,k)=>s.classList.toggle('on',k===i));[...nav.children].forEach((d,k)=>d.classList.toggle('on',k===i));}
+document.addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();go(i+1)}if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(i-1)}});
+document.addEventListener('click',e=>{if(e.target.closest('a'))return;go(e.clientX>innerWidth/3?i+1:i-1)});
+go(0);
+</script>
+</body>
+</html>

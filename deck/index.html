@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airlock</title>
+<style>
+:root{--ink:#14152b;--muted:#5d6079;--line:#e3e4ee;--paper:#f7f7fb;--accent:#6f6cf6;--navy:#2b2a6e;--red:#e5484d;--green:#1f9d61;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--paper);color:var(--ink);font-family:var(--sans)}
+.slide{position:absolute;inset:0;padding:6vh 7vw;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .35s ease}
+.slide.on{opacity:1;pointer-events:auto}
+.kicker{font:500 clamp(12px,1.1vw,15px)/1 var(--mono);color:var(--muted);letter-spacing:.02em;display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{font-size:clamp(56px,9vw,132px);font-weight:700;letter-spacing:-.04em;line-height:.95}
+h2{font-size:clamp(34px,4.6vw,68px);font-weight:700;letter-spacing:-.03em;line-height:1.02;max-width:18ch}
+h2 em,h1 em{font-style:normal;color:var(--accent)}
+.lead{font-size:clamp(18px,1.8vw,26px);color:var(--muted);line-height:1.4;max-width:46ch}
+.body{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4vh}
+/* timeline */
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:2vh;position:relative}
+.flow::before{content:"";position:absolute;top:22px;left:10%;right:10%;height:2px;background:var(--line)}
+.st{position:relative;text-align:center;padding:0 6px}
+.dot{width:46px;height:46px;border-radius:50%;margin:0 auto 14px;background:#fff;border:2px solid var(--line);display:grid;place-items:center;font:600 14px var(--mono);color:var(--muted)}
+.st b{display:block;font:600 clamp(14px,1.3vw,18px) var(--mono)}
+.st span{display:block;color:var(--muted);font-size:clamp(12px,1.05vw,15px);margin-top:6px;line-height:1.35}
+.st.al .dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.st.al b{color:var(--accent)}
+.st.ci .dot{border-color:var(--navy);color:var(--navy)}
+.st.bad .dot{border-color:var(--red);color:var(--red)}
+.stats{display:flex;gap:6vw}
+.stat b{display:block;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-.04em;line-height:1}
+.stat span{color:var(--muted);font-size:clamp(14px,1.2vw,17px)}
+/* table */
+.rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:1.1fr 1.3fr .5fr;gap:3vw;align-items:center;padding:2.2vh 0;border-bottom:1px solid var(--line)}
+.row .what{font-size:clamp(17px,1.7vw,24px);font-weight:600}
+.row code{font:clamp(13px,1.2vw,17px) var(--mono);background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tagx{font:600 12px var(--mono);justify-self:start;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tagx.only{background:var(--accent);border-color:var(--accent);color:#fff}
+/* terminal */
+.term{background:var(--ink);color:#e9e9f3;border-radius:14px;padding:3vh 2.4vw;font:clamp(13px,1.25vw,18px)/1.65 var(--mono);max-width:900px;box-shadow:0 20px 50px -24px rgba(20,21,43,.5)}
+.term .r{color:#ff6b70}.term .g{color:#4cd38a}.term .m{color:#8d8fb0}.term .a{color:#a9a7ff}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:1.6vw}
+.stp{border-top:3px solid var(--accent);padding-top:12px;font-size:clamp(14px,1.25vw,18px);line-height:1.35}
+.stp b{display:block;font:600 12px var(--mono);color:var(--accent);margin-bottom:6px}
+/* last */
+.two{display:grid;grid-template-columns:1.4fr 1fr;gap:6vw;align-items:start}
+.cmd{font:600 clamp(16px,1.7vw,24px) var(--mono);background:var(--ink);color:#fff;border-radius:10px;padding:16px 20px;display:inline-block}
+ul{padding-left:1.1em;color:var(--muted);font-size:clamp(14px,1.25vw,18px);line-height:1.6}
+.qr{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center}
+.qr svg{width:100%;max-width:220px;height:auto;display:block;margin:0 auto 10px}
+.qr span{font:13px var(--mono);color:var(--muted)}
+.nav{position:fixed;bottom:3vh;right:7vw;font:12px var(--mono);color:var(--muted);display:flex;gap:6px;align-items:center}
+.nav i{width:22px;height:3px;background:var(--line);border-radius:2px}.nav i.on{background:var(--accent)}
+@media (max-width:760px){.slide{padding:5vh 6vw;overflow:auto}.flow{grid-template-columns:1fr;gap:18px}.flow::before{display:none}.st{display:grid;grid-template-columns:46px 1fr;text-align:left;gap:12px}.dot{margin:0}.row{grid-template-columns:1fr}.steps,.two{grid-template-columns:1fr}.stats{flex-direction:column;gap:2vh}}
+</style>
+</head>
+<body>
+
+<section class="slide on">
+  <div class="kicker"><span>SAAF Security Challenge · 10 Nov 2026</span><span>Izzet</span></div>
+  <div class="body">
+    <h1>Airlock</h1>
+    <p class="lead">Stops the mistakes from today's findings <em style="font-style:normal;color:var(--accent)">before they are committed</em>, not after they are pushed.</p>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>01 · The gap</span><span>Today: 61 findings in 29 SAAF repos</span></div>
+  <div class="body">
+    <h2>A pushed key is a <em>leaked</em> key.</h2>
+    <div class="flow">
+      <div class="st"><div class="dot">1</div><b>write code</b><span>key pasted in, PDF sent raw to the model</span></div>
+      <div class="st al"><div class="dot">2</div><b>git commit</b><span>Airlock refuses it here</span></div>
+      <div class="st"><div class="dot">3</div><b>git push</b><span>now on GitHub</span></div>
+      <div class="st ci"><div class="dot">4</div><b>CI</b><span>SAAF Guard fails the build, too late for the key</span></div>
+      <div class="st bad"><div class="dot">∞</div><b>git history</b><span>the key stays readable forever</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>02 · What Airlock refuses</span><span>SAAF Guard's 17 rules + Airlock's own, on staged files</span></div>
+  <div class="body">
+    <h2>Four mistakes from <em>today</em>.</h2>
+    <div class="rows">
+      <div class="row"><div class="what">Real key in .env.example</div><code>ANTHROPIC_API_KEY=sk-ant-api03-…</code><span class="tagx only">Airlock only</span></div>
+      <div class="row"><div class="what">Vendor PDF sent to the model unfenced</div><code>f"Review this report: {pdf_text}"</code><span class="tagx">SAAF Guard rule</span></div>
+      <div class="row"><div class="what">An error turns the verdict green</div><code>except: return "Green"</code><span class="tagx only">Airlock only</span></div>
+      <div class="row"><div class="what">Agent server open to the network</div><code>app.run(host="0.0.0.0", debug=True)</code><span class="tagx">SAAF Guard rule</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>03 · Live demo</span><span>building a vendor-review agent</span></div>
+  <div class="body">
+    <div class="term"><span class="m">$</span> git commit -m "vendor review agent"<br>
+<span class="r">┌─ airlock ✖ COMMIT BLOCKED</span><br>
+<span class="r">│</span> High  agent.py:5<br>
+<span class="r">│</span>       <span class="a">[SAAF Guard SG02]</span> Untrusted text enters the prompt without fence()<br>
+<span class="r">│</span>       <span class="m">fix: wrap document text in fence()</span><br>
+<span class="r">└──</span><br>
+<span class="m">$</span> git commit -m "vendor review agent"<br>
+<span class="g">airlock ✔ commit clean</span></div>
+    <div class="steps">
+      <div class="stp"><b>STEP 1</b>.env + .env.example with a real key</div>
+      <div class="stp"><b>STEP 2</b>agent sends the vendor PDF raw</div>
+      <div class="stp"><b>STEP 3</b>rating falls back to "Green"</div>
+      <div class="stp"><b>STEP 4</b>server on 0.0.0.0 with debug</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker"><span>04 · Reuse in any SAAF repo</span><span>standard-library Python · offline</span></div>
+  <div class="body">
+    <div class="two">
+      <div style="display:flex;flex-direction:column;gap:3vh">
+        <h2>One command.</h2>
+        <div><span class="cmd">python airlock.py install .</span></div>
+        <ul>
+          <li>Uses SAAF Guard's rules automatically when present</li>
+          <li>Also as a pre-commit hook and a CI workflow</li>
+          <li>Use gitleaks for secrets; Airlock adds the AI-agent rules</li>
+          <li><b>Limits:</b> static patterns, can miss or over-flag; skippable with --no-verify, so keep CI as backstop</li>
+        </ul>
+      </div>
+      <div class="qr">
+<svg width="29mm" height="29mm" version="1.1" viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg"><path d="M0,0H1V1H0zM1,0H2V1H1zM2,0H3V1H2zM3,0H4V1H3zM4,0H5V1H4zM5,0H6V1H5zM6,0H7V1H6zM9,0H10V1H9zM10,0H11V1H10zM11,0H12V1H11zM12,0H13V1H12zM13,0H14V1H13zM14,0H15V1H14zM15,0H16V1H15zM17,0H18V1H17zM18,0H19V1H18zM22,0H23V1H22zM23,0H24V1H23zM24,0H25V1H24zM25,0H26V1H25zM26,0H27V1H26zM27,0H28V1H27zM28,0H29V1H28zM0,1H1V2H0zM6,1H7V2H6zM8,1H9V2H8zM11,1H12V2H11zM12,1H13V2H12zM15,1H16V2H15zM22,1H23V2H22zM28,1H29V2H28zM0,2H1V3H0zM2,2H3V3H2zM3,2H4V3H3zM4,2H5V3H4zM6,2H7V3H6zM8,2H9V3H8zM9,2H10V3H9zM11,2H12V3H11zM12,2H13V3H12zM14,2H15V3H14zM16,2H17V3H16zM19,2H20V3H19zM22,2H23V3H22zM24,2H25V3H24zM25,2H26V3H25zM26,2H27V3H26zM28,2H29V3H28zM0,3H1V4H0zM2,3H3V4H2zM3,3H4V4H3zM4,3H5V4H4zM6,3H7V4H6zM8,3H9V4H8zM9,3H10V4H9zM14,3H15V4H14zM15,3H16V4H15zM17,3H18V4H17zM19,3H20V4H19zM22,3H23V4H22zM24,3H25V4H24zM25,3H26V4H25zM26,3H27V4H26zM28,3H29V4H28zM0,4H1V5H0zM2,4H3V5H2zM3,4H4V5H3zM4,4H5V5H4zM6,4H7V5H6zM9,4H10V5H9zM11,4H12V5H11zM12,4H13V5H12zM13,4H14V5H13zM14,4H15V5H14zM15,4H16V5H15zM19,4H20V5H19zM20,4H21V5H20zM22,4H23V5H22zM24,4H25V5H24zM25,4H26V5H25zM26,4H27V5H26zM28,4H29V5H28zM0,5H1V6H0zM6,5H7V6H6zM9,5H10V6H9zM10,5H11V6H10zM11,5H12V6H11zM12,5H13V6H12zM13,5H14V6H13zM14,5H15V6H14zM16,5H17V6H16zM22,5H23V6H22zM28,5H29V6H28zM0,6H1V7H0zM1,6H2V7H1zM2,6H3V7H2zM3,6H4V7H3zM4,6H5V7H4zM5,6H6V7H5zM6,6H7V7H6zM8,6H9V7H8zM10,6H11V7H10zM12,6H13V7H12zM14,6H15V7H14zM16,6H17V7H16zM18,6H19V7H18zM20,6H21V7H20zM22,6H23V7H22zM23,6H24V7H23zM24,6H25V7H24zM25,6H26V7H25zM26,6H27V7H26zM27,6H28V7H27zM28,6H29V7H28zM8,7H9V8H8zM9,7H10V8H9zM12,7H13V8H12zM13,7H14V8H13zM18,7H19V8H18zM19,7H20V8H19zM0,8H1V9H0zM6,8H7V9H6zM8,8H9V9H8zM10,8H11V9H10zM11,8H12V9H11zM14,8H15V9H14zM15,8H16V9H15zM17,8H18V9H17zM19,8H20V9H19zM20,8H21V9H20zM21,8H22V9H21zM22,8H23V9H22zM25,8H26V9H25zM26,8H27V9H26zM27,8H28V9H27zM0,9H1V10H0zM1,9H2V10H1zM2,9H3V10H2zM3,9H4V10H3zM5,9H6V10H5zM7,9H8V10H7zM8,9H9V10H8zM11,9H12V10H11zM12,9H13V10H12zM14,9H15V10H14zM19,9H20V10H19zM21,9H22V10H21zM23,9H24V10H23zM24,9H25V10H24zM26,9H27V10H26zM27,9H28V10H27zM2,10H3V11H2zM6,10H7V11H6zM7,10H8V11H7zM9,10H10V11H9zM10,10H11V11H10zM12,10H13V11H12zM18,10H19V11H18zM20,10H21V11H20zM24,10H25V11H24zM1,11H2V12H1zM8,11H9V12H8zM11,11H12V12H11zM12,11H13V12H12zM14,11H15V12H14zM15,11H16V12H15zM16,11H17V12H16zM18,11H19V12H18zM21,11H22V12H21zM25,11H26V12H25zM6,12H7V13H6zM7,12H8V13H7zM8,12H9V13H8zM13,12H14V13H13zM14,12H15V13H14zM16,12H17V13H16zM18,12H19V13H18zM20,12H21V13H20zM22,12H23V13H22zM23,12H24V13H23zM28,12H29V13H28zM0,13H1V14H0zM1,13H2V14H1zM9,13H10V14H9zM13,13H14V14H13zM14,13H15V14H14zM17,13H18V14H17zM18,13H19V14H18zM19,13H20V14H19zM20,13H21V14H20zM22,13H23V14H22zM23,13H24V14H23zM24,13H25V14H24zM27,13H28V14H27zM28,13H29V14H28zM0,14H1V15H0zM1,14H2V15H1zM3,14H4V15H3zM4,14H5V15H4zM5,14H6V15H5zM6,14H7V15H6zM10,14H11V15H10zM13,14H14V15H13zM14,14H15V15H14zM15,14H16V15H15zM16,14H17V15H16zM17,14H18V15H17zM20,14H21V15H20zM21,14H22V15H21zM24,14H25V15H24zM25,14H26V15H25zM26,14H27V15H26zM0,15H1V16H0zM2,15H3V16H2zM5,15H6V16H5zM7,15H8V16H7zM8,15H9V16H8zM9,15H10V16H9zM11,15H12V16H11zM12,15H13V16H12zM13,15H14V16H13zM14,15H15V16H14zM15,15H16V16H15zM16,15H17V16H16zM19,15H20V16H19zM23,15H24V16H23zM24,15H25V16H24zM26,15H27V16H26zM28,15H29V16H28zM0,16H1V17H0zM1,16H2V17H1zM5,16H6V17H5zM6,16H7V17H6zM9,16H10V17H9zM10,16H11V17H10zM11,16H12V17H11zM14,16H15V17H14zM17,16H18V17H17zM19,16H20V17H19zM21,16H22V17H21zM23,16H24V17H23zM25,16H26V17H25zM26,16H27V17H26zM0,17H1V18H0zM2,17H3V18H2zM5,17H6V18H5zM7,17H8V18H7zM8,17H9V18H8zM9,17H10V18H9zM10,17H11V18H10zM11,17H12V18H11zM12,17H13V18H12zM15,17H16V18H15zM16,17H17V18H16zM18,17H19V18H18zM19,17H20V18H19zM22,17H23V18H22zM23,17H24V18H23zM24,17H25V18H24zM26,17H27V18H26zM27,17H28V18H27zM28,17H29V18H28zM0,18H1V19H0zM1,18H2V19H1zM3,18H4V19H3zM4,18H5V19H4zM6,18H7V19H6zM9,18H10V19H9zM13,18H14V19H13zM14,18H15V19H14zM15,18H16V19H15zM17,18H18V19H17zM18,18H19V19H18zM19,18H20V19H19zM24,18H25V19H24zM25,18H26V19H25zM28,18H29V19H28zM0,19H1V20H0zM2,19H3V20H2zM7,19H8V20H7zM8,19H9V20H8zM10,19H11V20H10zM12,19H13V20H12zM14,19H15V20H14zM15,19H16V20H15zM20,19H21V20H20zM22,19H23V20H22zM0,20H1V21H0zM2,20H3V21H2zM3,20H4V21H3zM4,20H5V21H4zM5,20H6V21H5zM6,20H7V21H6zM9,20H10V21H9zM15,20H16V21H15zM17,20H18V21H17zM19,20H20V21H19zM20,20H21V21H20zM21,20H22V21H21zM22,20H23V21H22zM23,20H24V21H23zM24,20H25V21H24zM26,20H27V21H26zM27,20H28V21H27zM28,20H29V21H28zM8,21H9V22H8zM10,21H11V22H10zM12,21H13V22H12zM13,21H14V22H13zM15,21H16V22H15zM17,21H18V22H17zM18,21H19V22H18zM20,21H21V22H20zM24,21H25V22H24zM25,21H26V22H25zM0,22H1V23H0zM1,22H2V23H1zM2,22H3V23H2zM3,22H4V23H3zM4,22H5V23H4zM5,22H6V23H5zM6,22H7V23H6zM9,22H10V23H9zM10,22H11V23H10zM12,22H13V23H12zM13,22H14V23H13zM14,22H15V23H14zM15,22H16V23H15zM16,22H17V23H16zM18,22H19V23H18zM19,22H20V23H19zM20,22H21V23H20zM22,22H23V23H22zM24,22H25V23H24zM25,22H26V23H25zM26,22H27V23H26zM0,23H1V24H0zM6,23H7V24H6zM13,23H14V24H13zM15,23H16V24H15zM16,23H17V24H16zM19,23H20V24H19zM20,23H21V24H20zM24,23H25V24H24zM27,23H28V24H27zM0,24H1V25H0zM2,24H3V25H2zM3,24H4V25H3zM4,24H5V25H4zM6,24H7V25H6zM9,24H10V25H9zM10,24H11V25H10zM12,24H13V25H12zM13,24H14V25H13zM16,24H17V25H16zM19,24H20V25H19zM20,24H21V25H20zM21,24H22V25H21zM22,24H23V25H22zM23,24H24V25H23zM24,24H25V25H24zM25,24H26V25H25zM27,24H28V25H27zM28,24H29V25H28zM0,25H1V26H0zM2,25H3V26H2zM3,25H4V26H3zM4,25H5V26H4zM6,25H7V26H6zM9,25H10V26H9zM11,25H12V26H11zM15,25H16V26H15zM16,25H17V26H16zM19,25H20V26H19zM20,25H21V26H20zM21,25H22V26H21zM25,25H26V26H25zM26,25H27V26H26zM28,25H29V26H28zM0,26H1V27H0zM2,26H3V27H2zM3,26H4V27H3zM4,26H5V27H4zM6,26H7V27H6zM9,26H10V27H9zM10,26H11V27H10zM11,26H12V27H11zM13,26H14V27H13zM15,26H16V27H15zM17,26H18V27H17zM18,26H19V27H18zM19,26H20V27H19zM20,26H21V27H20zM21,26H22V27H21zM22,26H23V27H22zM23,26H24V27H23zM24,26H25V27H24zM25,26H26V27H25zM26,26H27V27H26zM27,26H28V27H27zM0,27H1V28H0zM6,27H7V28H6zM9,27H10V28H9zM11,27H12V28H11zM12,27H13V28H12zM18,27H19V28H18zM22,27H23V28H22zM23,27H24V28H23zM25,27H26V28H25zM26,27H27V28H26zM28,27H29V28H28zM0,28H1V29H0zM1,28H2V29H1zM2,28H3V29H2zM3,28H4V29H3zM4,28H5V29H4zM5,28H6V29H5zM6,28H7V29H6zM8,28H9V29H8zM9,28H10V29H9zM11,28H12V29H11zM13,28H14V29H13zM14,28H15V29H14zM17,28H18V29H17zM19,28H20V29H19zM22,28H23V29H22zM23,28H24V29H23zM24,28H25V29H24zM26,28H27V29H26z" id="qr-path" fill="#000000" fill-opacity="1" fill-rule="nonzero" stroke="none"/></svg><span>github.com/izzetp/airlock</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="nav" id="nav"></div>
+<script>
+const S=[...document.querySelectorAll('.slide')],nav=document.getElementById('nav');let i=0;
+S.forEach(()=>nav.appendChild(document.createElement('i')));
+function go(n){i=Math.max(0,Math.min(S.length-1,n));S.forEach((s,k)=>s.classList.toggle('on',k===i));[...nav.children].forEach((d,k)=>d.classList.toggle('on',k===i));}
+document.addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();go(i+1)}if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(i-1)}});
+document.addEventListener('click',e=>{if(e.target.closest('a'))return;go(e.clientX>innerWidth/3?i+1:i-1)});
+go(0);
+</script>
+</body>
+</html>

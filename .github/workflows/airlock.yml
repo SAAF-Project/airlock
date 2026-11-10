@@ -1,0 +1,20 @@
+# Airlock in CI: full repo + full git history on every push and PR.
+# Copy this file (and airlock.py) into any SAAF agent repo.
+name: airlock
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python airlock.py scan . --fail-on high --csv airlock-findings.csv
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: airlock-findings
+          path: airlock-findings.csv

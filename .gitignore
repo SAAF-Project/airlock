@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+findings*.csv
+results*.json
+.env
+.env.*
+!.env.example
+extras/

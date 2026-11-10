@@ -1,0 +1,6 @@
+- id: airlock
+  name: Airlock (secrets, .env, prompt-injection fences, fail-open verdicts)
+  entry: airlock staged
+  language: python
+  pass_filenames: false
+  always_run: true
