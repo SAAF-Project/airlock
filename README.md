@@ -1,6 +1,6 @@
 # Airlock
 
-**The commit-time layer for SAAF agent repos.** Airlock refuses a `git commit` that contains the mistakes found in SAAF agents on 10 November 2026, before they ever reach git history.
+**The commit-time layer for SAAF agent repos.** Airlock checks staged changes for recognised secret and unsafe-code patterns and refuses commits with High or Critical findings.
 
 Built at the SAAF Security Challenge (Session #10, 10 Nov 2026).
 
@@ -10,18 +10,18 @@ On 10 Nov 2026 the challenge teams found 61 weaknesses in 29 SAAF repos. [SAAF G
 
 CI runs *after* the push. By then a key is already in the remote history, and on a public repo it has leaked. SAAF Guard's README asks developers to run the check before committing, but nothing enforces it.
 
-Airlock enforces it: it runs SAAF Guard's rules, plus its own, on the staged files at `git commit`, and refuses the commit on High or Critical findings.
+When installed, Airlock runs its own rules, plus SAAF Guard's rules when that optional package is available, on the staged files at `git commit`, and refuses the commit on High or Critical findings.
 
 ## What it blocks at commit
 
-| Mistake (from today's findings) | Example | Rule |
+| Recognised pattern | Example | Rule |
 |---|---|---|
 | Key or `.env` file committed | `git add .` picks up `.env` | Airlock + SAAF Guard SG01 |
 | `.env.example` with real values instead of placeholders | key copied from `.env` | **Airlock only** |
 | Auditee document sent to the LLM without a fence (prompt injection) | `f"Review this report: {pdf_text}"` | SAAF Guard SG02 (+ Airlock fallback) |
 | Fail-open verdict inside an error branch | `except: return "Green"` | **Airlock only** (SG03 checks only a function's last line) |
 | Agent server open to the network | `app.run(host="0.0.0.0", debug=True)` | SAAF Guard SG05 (+ Airlock fallback) |
-| Command execution on input | `eval(model_output)`, `shell=True` | SAAF Guard SG06 (+ Airlock fallback) |
+| Dynamic Python execution | `eval(model_output)` | SAAF Guard SG06 (+ Airlock fallback) |
 
 Every block shows file, line, which rule fired and the fix. Secret values are masked.
 
@@ -29,7 +29,7 @@ Every block shows file, line, which rule fired and the fix. Secret values are ma
 
 ## Install (any SAAF repo, one command)
 
-Requires Python 3.9+ and git. Standard library only, works offline.
+Requires Python 3.9+ and Git; CI verifies Python 3.11 and 3.12 on Linux. Standard library only, works offline.
 
 ```bash
 python airlock.py install path/to/your-agent-repo
@@ -57,7 +57,7 @@ python airlock.py scan repo1 repo2 --csv findings.csv   # challenge CSV format, 
 python airlock.py scan . --fail-on high                 # exit 1 for CI
 ```
 
-The scan prints the decision first (`BLOCK · 2 blocking findings` or `PASS`); the score is secondary. A folder that is not a git repo, or a git error, gives `SCAN FAILED · not assessed` and exit code 2, never a score.
+The scan prints the decision first (`BLOCK · 2 blocking findings` or `PASS`); the score is secondary. A folder that is not a Git repo, a Git error, or Python source that cannot be parsed gives `SCAN FAILED · not assessed` and exit code 2, never a score.
 
 ## Tests
 
@@ -74,14 +74,21 @@ python demo.py          # Enter between steps
 python demo.py --auto   # no pauses
 ```
 
-Builds a throw-away "vendor review agent" repo in your home folder and makes four mistakes from today's findings: `.env` and a real key in `.env.example`, an unfenced vendor PDF, a fail-open rating and an open web server. Each commit is refused, fixed, and then goes through. The fake key is generated at runtime.
+Creates a new temporary "vendor review agent" repository and prints its location.
+Use `--directory path/to/new-demo` for a chosen destination; an existing path is
+refused without changing its contents. The demo checks four synthetic mistakes:
+a fake key/environment file, an unfenced document, a fail-open rating and an open
+debug server. Each bad commit must fail and each corrected commit must succeed;
+an unexpected result stops the demo. No fixture agent or model call is executed.
+The fake key is generated at runtime. The resulting demo directory is retained
+for inspection; remove it yourself when no longer needed.
 
 ## Limitations
 
-- Pattern-based static checks. They miss things (a prompt built in another file, unknown key formats) and can raise false alarms.
+- Python code calls use syntax trees; other checks use patterns. Quoted fixture strings and rule descriptions are not treated as Python calls, while secrets are still scanned in all text. Direct-call recognition misses aliases and settings computed elsewhere. These are static checks. They miss things (a prompt built in another file, unknown key formats) and can raise false alarms.
 - The fence check is file-level: a fence marker anywhere in the code (comments do not count) counts as fenced. It shows a marker is missing; it does not prove the prompt is safe, and every untrusted input is not traced.
-- Fencing reduces prompt-injection risk; it does not remove it. SAAF Guard's own red-team found 0 successful attacks on current models with or without a fence, so treat this as defence in depth.
-- The fail-open check looks for pass-like return values ("Green", "Pass", "Compliant", …) within a few lines of `except`, `if not x` or `if len(x) == 0`. Other shapes are missed.
+- A fence marker is not evidence that a model resists prompt injection. No model evaluation is performed in this repository's CI.
+- The fail-open check recognises pass-like return statements, including nested branches, inside `except`, `if not x`, `if len(x) == 0` and `if x is None` bodies. It does not trace helper functions, deferred nested functions or every control-flow shape.
 - About 30 of today's 61 findings are design flaws no static check can see (approvals from the request body, ungrounded quotes). SAAF Guard's build rules cover those during design.
 - A local hook can be skipped with `git commit --no-verify`. Keep the CI check as the backstop.
 - Python and JavaScript focused.
@@ -89,3 +96,14 @@ Builds a throw-away "vendor review agent" repo in your home folder and makes fou
 ## Credits
 
 Builds on SAAF Guard's rules and today's findings from the SAAF Security Challenge teams. Part of the [SAAF Project](https://saafproject.com).
+
+## Evidence and open decisions
+
+[agent.yaml](agent.yaml) describes the intended scope; it is not a runtime permission
+engine. [AUDIT-CRITERIA.md](AUDIT-CRITERIA.md) links draft criteria to executable
+synthetic tests. [DEPENDENCIES.md](DEPENDENCIES.md) separates the built-in scanner
+from optional integration dependencies. Historical challenge counts above are a
+10 November snapshot, not a current portfolio measurement.
+
+Operational owner acceptance and licensing remain unresolved: this revision has
+no LICENSE file. A successful test or self-scan assigns neither rights nor an owner.

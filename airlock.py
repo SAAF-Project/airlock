@@ -7,7 +7,7 @@ Usage:
   python airlock.py staged            # pre-commit: scan staged changes, block on findings
 Stdlib only. Runs offline. Secret values are always masked in output.
 """
-import argparse, csv, hashlib, json, math, os, re, subprocess, sys
+import argparse, ast, csv, hashlib, json, math, os, re, subprocess, sys
 
 SEV_ORDER = ["Informational", "Low", "Medium", "High", "Critical"]
 SEV_PENALTY = {"Critical": 30, "High": 15, "Medium": 6, "Low": 2, "Informational": 0}
@@ -148,21 +148,101 @@ def file_checks(path, lines, repo_defended=False):
                "Document text sent to the LLM without a data fence" + (" (prompt-only defence)" if repo_defended else ""),
                "Medium" if repo_defended else "High", ln,
                "Wrap every document/auditee text in clear delimiters (e.g. <document>…</document>) and tell the model to treat it as data, not instructions (OWASP LLM01).")
-    fn = ""
-    for i, l in enumerate(lines):
-        m = re.match(r"\s*def\s+(\w+)", l)
-        if m: fn = m.group(0)
-        if GUARD_LINE.match(l):
-            ind = len(l) - len(l.lstrip())
-            for j in range(i + 1, min(i + 5, len(lines))):
-                nl = lines[j]
-                if nl.strip() and (len(nl) - len(nl.lstrip())) <= ind:
-                    break
-                if PASS_VAL.search(nl):
-                    kind = "an error" if l.strip().startswith("except") else "empty or missing input"
-                    yield ("fail-open-verdict", f"Fail-open: {kind} produces a passing verdict", "High", j + 1,
-                           "On errors or empty input return a failing / 'needs review' verdict and surface it in the report and exit code, never a pass.")
-                    break
+    tree = parse_python(path, text)
+    for node in ast.walk(tree):
+        guarded = isinstance(node, ast.ExceptHandler)
+        if isinstance(node, ast.If):
+            test = ast.get_source_segment(text, node.test) or ""
+            guarded = bool(re.match(r"not\s+|len\(.+\)\s*==\s*0|[\w.]+\s+is\s+None", test))
+        if not guarded:
+            continue
+        for statement in guarded_returns(node.body):
+            rendered = ast.get_source_segment(text, statement) or ""
+            if PASS_VAL.search(rendered):
+                yield ("fail-open-verdict", "Fail-open: an error or missing input produces a passing verdict",
+                       "High", statement.lineno,
+                       "Return an inconclusive / needs review verdict on errors or missing input, never a pass.")
+
+
+def guarded_returns(statements):
+    """Follow nested branches, but not deferred functions/classes defined in a guard."""
+    for statement in statements:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            continue
+        if isinstance(statement, ast.Return):
+            yield statement
+        else:
+            yield from guarded_returns(ast.iter_child_nodes(statement))
+
+
+def parse_python(path, source):
+    try:
+        return ast.parse(source, filename=path)
+    except (SyntaxError, ValueError) as exc:
+        raise ScanError(f"{path}: Python could not be parsed; not assessed ({type(exc).__name__})") from exc
+
+
+def python_code_checks(path, source):
+    """Inspect calls, not Python strings that describe calls or hold synthetic fixtures.
+
+    This remains a direct-call heuristic: aliases and values computed elsewhere need review.
+    Secrets are still scanned independently in all text, including literals and comments.
+    """
+    rules = {row[0]: row for row in CODE_RULES}
+    for node in ast.walk(parse_python(path, source)):
+        # Preserve checks on literal server configuration outside calls, without
+        # matching strings containing example source or descriptions of a rule.
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value = node.value
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names = [ast.get_source_segment(source, target) or "" for target in targets]
+            settings = {}
+            if isinstance(value, ast.Dict):
+                settings = {key.value: item for key, item in zip(value.keys, value.values)
+                            if isinstance(key, ast.Constant) and isinstance(key.value, str)}
+            elif value is not None:
+                settings = {name: value for name in names}
+            matched = set()
+            for key, item in settings.items():
+                if isinstance(item, ast.Constant) and item.value == "0.0.0.0":
+                    matched.add("open-server-bind")
+                if key.rsplit(".", 1)[-1] == "debug" and isinstance(item, ast.Constant) and item.value is True:
+                    matched.add("flask-debug")
+                if key == "Access-Control-Allow-Origin" and isinstance(item, ast.Constant) and item.value == "*":
+                    matched.add("cors-wildcard")
+                if key == "allow_origins" and isinstance(item, (ast.List, ast.Tuple)) and any(
+                        isinstance(v, ast.Constant) and v.value == "*" for v in item.elts):
+                    matched.add("cors-wildcard")
+            for rid in sorted(matched):
+                _, title, severity, _, _, recommendation = rules[rid]
+                yield rid, title, severity, node.lineno, recommendation
+        if not isinstance(node, ast.Call):
+            continue
+        name = ast.get_source_segment(source, node.func) or ""
+        kw = {item.arg: item.value for item in node.keywords}
+        def literal(key, value):
+            return key in kw and isinstance(kw[key], ast.Constant) and kw[key].value == value
+        matched = []
+        if name in {"eval", "exec"} and node.args and not isinstance(node.args[0], ast.Constant):
+            matched.append("eval-exec")
+        if literal("host", "0.0.0.0") or (name.endswith(".bind") and node.args and any(
+                isinstance(v, ast.Constant) and v.value == "0.0.0.0" for v in ast.walk(node.args[0]))):
+            matched.append("open-server-bind")
+        if name.endswith(".run") and literal("debug", True):
+            matched.append("flask-debug")
+        if "allow_origins" in kw and isinstance(kw["allow_origins"], (ast.List, ast.Tuple)) and any(
+                isinstance(v, ast.Constant) and v.value == "*" for v in kw["allow_origins"].elts):
+            matched.append("cors-wildcard")
+        if literal("unsafe_allow_html", True): matched.append("unsafe-html-streamlit")
+        if literal("autoescape", False) or name == "Markup": matched.append("jinja-autoescape-off")
+        if literal("verify", False): matched.append("tls-verify-off")
+        if name.startswith("subprocess.") and literal("shell", True): matched.append("shell-true")
+        if name == "yaml.load" and not any("SafeLoader" in (ast.get_source_segment(source, v) or "") for v in kw.values()):
+            matched.append("yaml-unsafe")
+        if name in {"pickle.load", "pickle.loads"}: matched.append("pickle-load")
+        for rid in matched:
+            _, title, severity, _, _, recommendation = rules[rid]
+            yield rid, title, severity, node.lineno, recommendation
 
 # ---------- git helpers ----------
 class ScanError(Exception):
@@ -230,7 +310,7 @@ def scan_repo(repo, log=print):
                 lines = fh.read().splitlines()
         except (OSError, IsADirectoryError):
             continue
-        for rid, title, sev, ln, rec in file_checks(f, lines, repo_defended):
+        for rid, title, sev, ln, rec in list(file_checks(f, lines, repo_defended)) + (list(python_code_checks(f, "\n".join(lines))) if f.endswith(".py") else []):
             F.add(("file", rid, f, ln if rid == "fail-open-verdict" else 0), category="AI safety", rule=rid, severity=sev, title=f"{title} in {f}", file=f, line=ln,
                   evidence=(scrub(lines[ln-1]).strip()[:120] if ln else ""), observation=f"{title} ({f}:{ln}).", recommendation=rec)
         for i, line in enumerate(lines, 1):
@@ -241,7 +321,7 @@ def scan_repo(repo, log=print):
                       title=f"{rname} committed in {f}", file=f, line=i, evidence=mask(val),
                       observation=f"A {rname.lower()} is present in the current version of {f} (line {i}). Value masked: {mask(val)}.",
                       recommendation="Revoke and rotate the key now, move it to an environment variable or secret store, and purge it from git history.")
-            for rid, title, sev, rec in code_hits(f, line):
+            for rid, title, sev, rec in (() if f.endswith(".py") else code_hits(f, line)):
                 F.add(("code", rid, f), category="Unsafe code", rule=rid, severity=sev, title=f"{title} in {f}", file=f, line=i,
                       evidence=scrub(line).strip()[:120], observation=f"{title} at {f}:{i}.", recommendation=rec)
             for kind, val in pii_hits(f, line):
@@ -407,7 +487,7 @@ def _staged():
         if line.startswith("+") and cur and not skip(cur):
             for rid, rname, val in find_secrets(line[1:]):
                 hits.append((cur, ln, "Critical", f"{rname} ({mask(val)})", "Move it to .env (gitignored) and read it with os.environ."))
-            for rid, title, sev, rec in code_hits(cur, line[1:]):
+            for rid, title, sev, rec in (() if cur.endswith(".py") else code_hits(cur, line[1:])):
                 if sev in ("High", "Critical"):
                     hits.append((cur, ln, sev, title, rec))
             ln += 1
@@ -420,7 +500,7 @@ def _staged():
     for f in staged_files:
         if f.endswith(".py"):
             content = subprocess.run(["git", "show", f":{f}"], capture_output=True, text=True, errors="replace").stdout.splitlines()
-            for rid, title, sev, ln, rec in file_checks(f, content):
+            for rid, title, sev, ln, rec in list(file_checks(f, content)) + list(python_code_checks(f, "\n".join(content))):
                 if sev in ("High", "Critical"):
                     hits.append((f, ln, sev, title, rec))
     sg = load_saaf_guard()

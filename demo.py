@@ -2,22 +2,25 @@
 """Airlock live demo: building a SAAF vendor-review agent and making the mistakes from
 today's findings. Each risky commit is refused, fixed, and then goes through.
 No real secrets: the fake key is generated at runtime and never leaves the demo folder."""
-import os, random, shutil, string, subprocess, sys
+import argparse, os, random, string, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 AL = os.path.join(HERE, "airlock.py")
-DEMO = os.path.join(os.path.expanduser("~"), "airlock-demo")
+DEMO = None
 B, DIM, CY, R = "\033[1m", "\033[2m", "\033[36m", "\033[0m"
-AUTO = "--auto" in sys.argv
+AUTO = False
 
 def step(t):
     print(f"\n{CY}{B}▶ {t}{R}", flush=True)
     if not AUTO:
         input(f"{DIM}  [Enter]{R}")
 
-def sh(*cmd, show=True):
+def sh(*cmd, show=True, expected=0):
     if show: print(f"{DIM}$ {' '.join(cmd)}{R}", flush=True)
-    return subprocess.run(cmd, cwd=DEMO).returncode
+    result = subprocess.run(cmd, cwd=DEMO).returncode
+    if result != expected:
+        raise RuntimeError(f"Demo stopped: expected exit {expected}, got {result} for {cmd[0]}")
+    return result
 
 def write(name, text):
     p = os.path.join(DEMO, name); os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -67,10 +70,17 @@ app.run(host="0.0.0.0", debug=True)
 SERVER_GOOD = SERVER_BAD.replace('app.run(host="0.0.0.0", debug=True)', 'app.run(host="127.0.0.1")')
 
 def main():
-    if os.path.exists(DEMO):
-        # git marks object files read-only; Windows refuses to delete them unless made writable
-        shutil.rmtree(DEMO, onerror=lambda f, p, e: (os.chmod(p, 0o700), f(p)))
-    os.makedirs(DEMO)
+    global DEMO, AUTO
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--auto", action="store_true", help="run without waiting for Enter")
+    parser.add_argument("--directory", help="new demo directory; refuses any existing path")
+    args = parser.parse_args()
+    AUTO = args.auto
+    if args.directory:
+        DEMO = os.path.abspath(args.directory)
+        os.makedirs(DEMO, exist_ok=False)
+    else:
+        DEMO = tempfile.mkdtemp(prefix="airlock-demo-")
     for c in (["git", "init", "-q"], ["git", "config", "user.email", "demo@airlock.example"], ["git", "config", "user.name", "Airlock Demo"]):
         sh(*c, show=False)
     write("README.md", "# Vendor review agent\n")
@@ -81,7 +91,7 @@ def main():
 
     step("Set up config: a real .env, and a .env.example copied from it (a real mistake from today)")
     write(".env", f"ANTHROPIC_API_KEY={FAKE_KEY}\n"); write(".env.example", ENV_EXAMPLE_BAD)
-    sh("git", "add", "."); sh("git", "commit", "-m", "project setup")
+    sh("git", "add", "."); sh("git", "commit", "-m", "project setup", expected=1)
 
     step("Fix: .env stays local (.gitignore), .env.example gets placeholders")
     write(".gitignore", ".env\n"); write(".env.example", ENV_EXAMPLE_GOOD)
@@ -89,24 +99,24 @@ def main():
     sh("git", "commit", "-m", "project setup")
 
     step("Write the agent: send the vendor's PDF to Claude")
-    write("agent.py", AGENT_BAD); sh("git", "add", "agent.py"); sh("git", "commit", "-m", "vendor review agent")
+    write("agent.py", AGENT_BAD); sh("git", "add", "agent.py"); sh("git", "commit", "-m", "vendor review agent", expected=1)
 
     step("Fix: fence the document so hidden instructions in the PDF are treated as data")
     write("agent.py", AGENT_GOOD); sh("git", "add", "agent.py"); sh("git", "commit", "-m", "vendor review agent")
 
     step("Add the overall rating")
-    write("rating.py", RATING_BAD); sh("git", "add", "rating.py"); sh("git", "commit", "-m", "overall rating")
+    write("rating.py", RATING_BAD); sh("git", "add", "rating.py"); sh("git", "commit", "-m", "overall rating", expected=1)
 
     step("Fix: when in doubt, never green")
     write("rating.py", RATING_GOOD); sh("git", "add", "rating.py"); sh("git", "commit", "-m", "overall rating")
 
     step("Put it behind a small web server for the team")
-    write("server.py", SERVER_BAD); sh("git", "add", "server.py"); sh("git", "commit", "-m", "web server")
+    write("server.py", SERVER_BAD); sh("git", "add", "server.py"); sh("git", "commit", "-m", "web server", expected=1)
 
     step("Fix: local only, no debug")
     write("server.py", SERVER_GOOD); sh("git", "add", "server.py"); sh("git", "commit", "-m", "web server")
 
-    step("Four mistakes from today's findings, none of them reached git history")
+    step("Four synthetic mistakes blocked; each corrected commit accepted")
     sh("git", "log", "--oneline")
     print(f"\n{B}Done.{R} Demo repo: {DEMO}")
 

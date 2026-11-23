@@ -1,0 +1,20 @@
+# Declarative Living Map description; not a runtime permission engine.
+name: airlock
+repo: SAAF-Project/airlock
+island: foundation
+maturity: building
+confirmed: false
+description: Offline commit-time and repository guard for secrets and risky source patterns.
+mandate:
+  purpose: Offline commit-time and repository guard for secrets and risky source patterns.
+  allowed_tools: [read_git_index, read_repository_files, read_git_history, write_findings, install_local_git_hook]
+  forbidden_actions:
+    - action: execute_reviewed_source
+      rationale: Source under review is untrusted data and must not run during a scan.
+    - action: call_model_or_external_service
+      rationale: These checks and synthetic demos run offline without provider credentials.
+    - action: change_own_config
+      rationale: Changes to rules and this mandate require a reviewed pull request.
+  trusted_inputs: [reviewed_checker_revision]
+  human_approval_required_for: [installing_or_chaining_git_hooks, accepting_findings_for_release, changing_gate_exceptions]
+  evidence_policy: cite_only_given_context
