@@ -190,6 +190,32 @@ def python_code_checks(path, source):
     """
     rules = {row[0]: row for row in CODE_RULES}
     for node in ast.walk(parse_python(path, source)):
+        # Preserve checks on literal server configuration outside calls, without
+        # matching strings containing example source or descriptions of a rule.
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value = node.value
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names = [ast.get_source_segment(source, target) or "" for target in targets]
+            settings = {}
+            if isinstance(value, ast.Dict):
+                settings = {key.value: item for key, item in zip(value.keys, value.values)
+                            if isinstance(key, ast.Constant) and isinstance(key.value, str)}
+            elif value is not None:
+                settings = {name: value for name in names}
+            matched = set()
+            for key, item in settings.items():
+                if isinstance(item, ast.Constant) and item.value == "0.0.0.0":
+                    matched.add("open-server-bind")
+                if key.rsplit(".", 1)[-1] == "debug" and isinstance(item, ast.Constant) and item.value is True:
+                    matched.add("flask-debug")
+                if key == "Access-Control-Allow-Origin" and isinstance(item, ast.Constant) and item.value == "*":
+                    matched.add("cors-wildcard")
+                if key == "allow_origins" and isinstance(item, (ast.List, ast.Tuple)) and any(
+                        isinstance(v, ast.Constant) and v.value == "*" for v in item.elts):
+                    matched.add("cors-wildcard")
+            for rid in sorted(matched):
+                _, title, severity, _, _, recommendation = rules[rid]
+                yield rid, title, severity, node.lineno, recommendation
         if not isinstance(node, ast.Call):
             continue
         name = ast.get_source_segment(source, node.func) or ""

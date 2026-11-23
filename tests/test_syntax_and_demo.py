@@ -27,6 +27,11 @@ class SyntaxChecks(unittest.TestCase):
         self.assertEqual({h[0] for h in airlock.python_code_checks('agent.py', source)},
                          {'shell-true', 'tls-verify-off', 'yaml-unsafe'})
 
+    def test_literal_server_configuration_remains_blocked(self):
+        source = 'host = "0.0.0.0"\ndebug = True\nheaders = {"Access-Control-Allow-Origin": "*"}\n'
+        self.assertEqual({h[0] for h in airlock.python_code_checks('server.py', source)},
+                         {'open-server-bind', 'flask-debug', 'cors-wildcard'})
+
     def test_literal_secret_is_still_scanned(self):
         key = 'sk-' + 'ant-' + 'Qw8Rt2Yu6Io9Pa4Sd7Fg3Hj5Kl1Zx0Cv' * 2
         self.assertTrue(airlock.find_secrets('FIXTURE = "' + key + '"'))
