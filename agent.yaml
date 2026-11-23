@@ -3,6 +3,7 @@ name: airlock
 repo: SAAF-Project/airlock
 island: foundation
 maturity: building
+confirmed: false
 description: Offline commit-time and repository guard for secrets and risky source patterns.
 mandate:
   purpose: Offline commit-time and repository guard for secrets and risky source patterns.
