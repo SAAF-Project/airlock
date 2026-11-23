@@ -88,7 +88,7 @@ for inspection; remove it yourself when no longer needed.
 - Python code calls use syntax trees; other checks use patterns. Quoted fixture strings and rule descriptions are not treated as Python calls, while secrets are still scanned in all text. Direct-call recognition misses aliases and settings computed elsewhere. These are static checks. They miss things (a prompt built in another file, unknown key formats) and can raise false alarms.
 - The fence check is file-level: a fence marker anywhere in the code (comments do not count) counts as fenced. It shows a marker is missing; it does not prove the prompt is safe, and every untrusted input is not traced.
 - A fence marker is not evidence that a model resists prompt injection. No model evaluation is performed in this repository's CI.
-- The fail-open check recognises direct pass-like return statements inside `except`, `if not x`, `if len(x) == 0` and `if x is None` bodies. It does not trace helper functions or every control-flow shape.
+- The fail-open check recognises pass-like return statements, including nested branches, inside `except`, `if not x`, `if len(x) == 0` and `if x is None` bodies. It does not trace helper functions, deferred nested functions or every control-flow shape.
 - About 30 of today's 61 findings are design flaws no static check can see (approvals from the request body, ungrounded quotes). SAAF Guard's build rules cover those during design.
 - A local hook can be skipped with `git commit --no-verify`. Keep the CI check as the backstop.
 - Python and JavaScript focused.

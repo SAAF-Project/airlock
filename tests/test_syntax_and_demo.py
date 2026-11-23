@@ -39,6 +39,16 @@ class SyntaxChecks(unittest.TestCase):
         source = 'def rate():\n try:\n  work()\n except Exception:\n  return "Green"\n'
         self.assertEqual([h[0] for h in airlock.file_checks('agent.py', source.splitlines())], ['fail-open-verdict'])
 
+    def test_nested_return_inside_error_or_missing_input_is_blocked(self):
+        for guard in ['try:\n  work()\n except Exception:', 'if value is None:']:
+            source = 'def rate(value):\n ' + guard + '\n  if fallback:\n   return "Green"\n'
+            with self.subTest(guard=guard):
+                self.assertTrue(list(airlock.file_checks('agent.py', source.splitlines())))
+
+    def test_nested_function_return_is_not_current_guard_verdict(self):
+        source = 'def rate(value):\n if value is None:\n  def later():\n   return "Green"\n  return "Inconclusive"\n'
+        self.assertEqual(list(airlock.file_checks('agent.py', source.splitlines())), [])
+
 
 class SafeDemo(unittest.TestCase):
     def test_existing_demo_directory_is_untouched(self):

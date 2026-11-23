@@ -156,14 +156,23 @@ def file_checks(path, lines, repo_defended=False):
             guarded = bool(re.match(r"not\s+|len\(.+\)\s*==\s*0|[\w.]+\s+is\s+None", test))
         if not guarded:
             continue
-        for statement in node.body:
-            if not isinstance(statement, ast.Return):
-                continue
+        for statement in guarded_returns(node.body):
             rendered = ast.get_source_segment(text, statement) or ""
             if PASS_VAL.search(rendered):
                 yield ("fail-open-verdict", "Fail-open: an error or missing input produces a passing verdict",
                        "High", statement.lineno,
                        "Return an inconclusive / needs review verdict on errors or missing input, never a pass.")
+
+
+def guarded_returns(statements):
+    """Follow nested branches, but not deferred functions/classes defined in a guard."""
+    for statement in statements:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            continue
+        if isinstance(statement, ast.Return):
+            yield statement
+        else:
+            yield from guarded_returns(ast.iter_child_nodes(statement))
 
 
 def parse_python(path, source):

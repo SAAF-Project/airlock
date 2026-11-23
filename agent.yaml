@@ -15,5 +15,5 @@ mandate:
     - action: change_own_config
       rationale: Changes to rules and this mandate require a reviewed pull request.
   trusted_inputs: [reviewed_checker_revision]
-  human_approval_required_for: [accepting_findings_for_release, changing_gate_exceptions]
+  human_approval_required_for: [installing_or_chaining_git_hooks, accepting_findings_for_release, changing_gate_exceptions]
   evidence_policy: cite_only_given_context
